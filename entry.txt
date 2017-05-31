@@ -1,0 +1,10 @@
+Last value:134148 (2017-05-05)
+zbxtg;graphs
+zbxtg;graphs_period=1800
+zbxtg;itemid:134148
+zbxtg;triggerid:54321
+zbxtg;title:Test - test
+Server: Test (127.0.0.1)
+
+Desc:
+Desc test
