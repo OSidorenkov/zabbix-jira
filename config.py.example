@@ -5,6 +5,8 @@ jira_close_status = '41'  # unique status for project. Read https://jira.readthe
 zbx_tg_prefix = "zbxtg"  # variable for separating text from script info
 zbx_tg_tmp_dir = "/tmp/" + zbx_tg_prefix  # directory for saving caches, cookies, etc.
 zbx_tg_signature = False
+jira_project = 'ZBX'  # Your project key, for example "ZBX"
+jira_issue_type = 'Error'  # Your issue type in Jira project(Error, Bug, Epic ...)
 
 zbx_server = "https://zabbix.example.ru"  # zabbix server full url
 zbx_api_user = "zab"

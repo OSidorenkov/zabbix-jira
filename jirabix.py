@@ -1,8 +1,10 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 from jira import JIRA
 import config
 import sys
 import requests
-import json
 import re
 import os
 import sqlite3
@@ -18,13 +20,13 @@ def jira_login():
     return JIRA(options=jira_server, basic_auth=(config.jira_user, config.jira_pass))
 
 
-def create_issue(to, tittle, body):
+def create_issue(to, tittle, body, project, issuetype):
     jira = jira_login()
     issue_params = {
-            'project': {'key': 'ZBX'},
+            'project': {'key': project},
             'summary': tittle,
             'description': body,
-            'issuetype': {'name': 'Ошибка'},
+            'issuetype': {'name': issuetype},
             'assignee': {'name': to},
     }
     return jira.create_issue(fields=issue_params).key
@@ -91,14 +93,6 @@ class ZabbixAPI:
             fp.write(res_img)
         return file_img
 
-    def api_test(self):
-        headers = {'Content-type': 'application/json'}
-        api_data = json.dumps({"jsonrpc": "2.0", "method": "user.login", "params":
-                              {"user": self.username, "password": self.password}, "id": 1})
-        api_url = self.server + "/api_jsonrpc.php"
-        api = requests.post(api_url, data=api_data, proxies=self.proxies, headers=headers)
-        return api.text
-
 
 def print_message(string):
     string = str(string) + "\n"
@@ -107,10 +101,12 @@ def print_message(string):
 
 
 def main():
-    tmp_dir = config.zbx_tg_tmp_dir
+    if not os.path.exists(config.zbx_tmp_dir):
+        os.makedirs(config.zbx_tmp_dir)
+    tmp_dir = config.zbx_tmp_dir
 
-    # zbx_body = open('entry.txt', 'r').read()
-    zbx_body = sys.argv[3]
+    zbx_body = open('entry.txt', 'r').read()
+    # zbx_body = sys.argv[3]
 
     zbx = ZabbixAPI(server=config.zbx_server, username=config.zbx_api_user,
                     password=config.zbx_api_pass)
@@ -127,31 +123,33 @@ def main():
     except:
         pass
 
-    zbxtg_body = zbx_body.splitlines()
-    zbxtg_body_text = []
+    zbx_body = zbx_body.splitlines()
+    zbx_body_text = []
 
     settings = {
-        "zbxtg_itemid": "0",  # itemid for graph
-        "zbxtg_triggerid": "0",  # uniqe trigger id of event
-        "zbxtg_title": None,  # title for graph
-        "zbxtg_image_period": "3600",
-        "zbxtg_image_width": "900",
-        "zbxtg_image_height": "200",
+        "zbx_itemid": "0",  # itemid for graph
+        "zbx_triggerid": "0",  # uniqe trigger id of event
+        "zbx_ok": "0",  # flag of resolve problem, 0 - no, 1 - yes
+        "zbx_title": None,  # title for graph
+        "zbx_image_period": "3600",
+        "zbx_image_width": "900",
+        "zbx_image_height": "200",
     }
     settings_description = {
-        "itemid": {"name": "zbxtg_itemid", "type": "int"},
-        "triggerid": {"name": "zbxtg_triggerid", "type": "int"},
-        "title": {"name": "zbxtg_title", "type": "str"},
-        "graphs_period": {"name": "zbxtg_image_period", "type": "int"},
-        "graphs_width": {"name": "zbxtg_image_width", "type": "int"},
-        "graphs_height": {"name": "zbxtg_image_height", "type": "int"},
+        "itemid": {"name": "zbx_itemid", "type": "int"},
+        "triggerid": {"name": "zbx_triggerid", "type": "int"},
+        "ok": {"name": "zbx_ok", "type": "int"},
+        "title": {"name": "zbx_title", "type": "str"},
+        "graphs_period": {"name": "zbx_image_period", "type": "int"},
+        "graphs_width": {"name": "zbx_image_width", "type": "int"},
+        "graphs_height": {"name": "zbx_image_height", "type": "int"},
         "graphs": {"name": "tg_method_image", "type": "bool"},
     }
 
-    for line in zbxtg_body:
-        if line.find(config.zbx_tg_prefix) > -1:
+    for line in zbx_body:
+        if line.find(config.zbx_prefix) > -1:
             setting = re.split("[\s\:\=]+", line, maxsplit=1)
-            key = setting[0].replace(config.zbx_tg_prefix + ";", "")
+            key = setting[0].replace(config.zbx_prefix + ";", "")
             if len(setting) > 1 and len(setting[1]) > 0:
                 value = setting[1]
             else:
@@ -159,9 +157,10 @@ def main():
             if key in settings_description:
                 settings[settings_description[key]["name"]] = value
         else:
-            zbxtg_body_text.append(line)
+            zbx_body_text.append(line)
 
-    trigger_id = int(settings['zbxtg_triggerid'])
+    trigger_ok = int(settings['zbx_ok'])
+    trigger_id = int(settings['zbx_triggerid'])
     # print(os.path.join(os.path.dirname(__file__), 'test.db'))
     conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'jirabix.db'))
     c = conn.cursor()
@@ -171,26 +170,28 @@ def main():
     c.execute('SELECT issue_key FROM events WHERE trigger_id=?', (trigger_id,))
     result = c.fetchall()
     # print(result)
-    if not result:
-        issue_key = create_issue(sys.argv[1], sys.argv[2], '\n'.join(zbxtg_body_text))
+    if not result and trigger_ok == 0:
+        issue_key = create_issue(sys.argv[1], sys.argv[2], '\n'.join(zbx_body_text), config.jira_project,
+                                 config.jira_issue_type)
         zbx.login()
         if not zbx.cookie:
             print_message("Login to Zabbix web UI has failed, check manually...")
         else:
-            zbxtg_file_img = zbx.graph_get(settings["zbxtg_itemid"], settings["zbxtg_image_period"],
-                                           settings["zbxtg_title"], settings["zbxtg_image_width"],
-                                           settings["zbxtg_image_height"], tmp_dir)
-            # zbxtg_body_text, is_modified = list_cut(zbxtg_body_text, 200)
-            if not zbxtg_file_img:
+            zbx_file_img = zbx.graph_get(settings["zbx_itemid"], settings["zbx_image_period"],
+                                           settings["zbx_title"], settings["zbx_image_width"],
+                                           settings["zbx_image_height"], tmp_dir)
+            if not zbx_file_img:
                 print_message("Can't get image, check URL manually")
-            elif isinstance(zbxtg_file_img, str):
-                add_attachment(issue_key, zbxtg_file_img)
-                os.remove(zbxtg_file_img)
+            elif isinstance(zbx_file_img, str):
+                add_attachment(issue_key, zbx_file_img)
+                os.remove(zbx_file_img)
         c.execute("INSERT INTO events VALUES (?, ?);", (trigger_id, issue_key))
         conn.commit()
+    elif not result and trigger_ok == 1:
+        pass
     else:
         issue_key = result[0][0]
-        add_comment(issue_key, '\n'.join(zbxtg_body_text))
+        add_comment(issue_key, '\n'.join(zbx_body_text))
         close_issue(issue_key, config.jira_close_status)
         c.execute('DELETE FROM events WHERE trigger_id=?', (trigger_id,))
         conn.commit()
