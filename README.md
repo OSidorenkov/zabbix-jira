@@ -84,8 +84,11 @@ You can use the following command to create a ticket in Jira from your command l
   `python jirabix.py "jira_username" "ticket_subject`
   
 ## Result
-See how creates the ticket with graf from Zabbix:  
-![2017-06-02 12_31_18](https://cloud.githubusercontent.com/assets/12871885/26720057/70045c4c-478f-11e7-96ff-75efbaeabbae.gif)
+* See how creates the ticket with graf from Zabbix:  
 
-When problem is going to OK, script convert the ticket to "Done" status with comment from zabbix recovery message:  
+![2017-06-02 12_31_18](https://cloud.githubusercontent.com/assets/12871885/26720057/70045c4c-478f-11e7-96ff-75efbaeabbae.gif)  
+
+
+* When problem is going to OK, script convert the ticket to "Done" status with comment from zabbix recovery message:  
+
 ![2017-06-02 12_44_41](https://cloud.githubusercontent.com/assets/12871885/26720515/47da1d04-4791-11e7-969d-573eedd83bcf.gif)
