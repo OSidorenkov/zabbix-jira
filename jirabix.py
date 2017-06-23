@@ -20,7 +20,7 @@ def jira_login():
     return JIRA(options=jira_server, basic_auth=(config.jira_user, config.jira_pass))
 
 
-def create_issue(to, tittle, body, project, issuetype):
+def create_issue(to, tittle, body, project, issuetype, priority):
     jira = jira_login()
     issue_params = {
             'project': {'key': project},
@@ -28,6 +28,7 @@ def create_issue(to, tittle, body, project, issuetype):
             'description': body,
             'issuetype': {'name': issuetype},
             'assignee': {'name': to},
+            'priority': {'id': priority}
     }
     return jira.create_issue(fields=issue_params).key
 
@@ -105,8 +106,8 @@ def main():
         os.makedirs(config.zbx_tmp_dir)
     tmp_dir = config.zbx_tmp_dir
 
-    zbx_body = open('entry.txt', 'r').read()
-    # zbx_body = sys.argv[3]
+    # zbx_body = open('entry.txt', 'r').read()
+    zbx_body = sys.argv[3]
 
     zbx = ZabbixAPI(server=config.zbx_server, username=config.zbx_api_user,
                     password=config.zbx_api_pass)
@@ -130,6 +131,7 @@ def main():
         "zbx_itemid": "0",  # itemid for graph
         "zbx_triggerid": "0",  # uniqe trigger id of event
         "zbx_ok": "0",  # flag of resolve problem, 0 - no, 1 - yes
+        "zbx_priority": None,  # zabbix trigger priority
         "zbx_title": None,  # title for graph
         "zbx_image_period": "3600",
         "zbx_image_width": "900",
@@ -139,11 +141,21 @@ def main():
         "itemid": {"name": "zbx_itemid", "type": "int"},
         "triggerid": {"name": "zbx_triggerid", "type": "int"},
         "ok": {"name": "zbx_ok", "type": "int"},
+        "priority": {"name": "zbx_priority", "type": "str"},
         "title": {"name": "zbx_title", "type": "str"},
         "graphs_period": {"name": "zbx_image_period", "type": "int"},
         "graphs_width": {"name": "zbx_image_width", "type": "int"},
         "graphs_height": {"name": "zbx_image_height", "type": "int"},
         "graphs": {"name": "tg_method_image", "type": "bool"},
+    }
+
+    trigger_desc = {
+        "not_classified": {"name": "Not classified", "id": "5"},
+        "information": {"name": "Information", "id": "5"},
+        "warning": {"name": "Warning", "id": "4"},
+        "average": {"name": "Average", "id": "3"},
+        "high": {"name": "High", "id": "2"},
+        "disaster": {"name": "Disaster", "id": "1"},
     }
 
     for line in zbx_body:
@@ -161,6 +173,7 @@ def main():
 
     trigger_ok = int(settings['zbx_ok'])
     trigger_id = int(settings['zbx_triggerid'])
+
     # print(os.path.join(os.path.dirname(__file__), 'test.db'))
     conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'jirabix.db'))
     c = conn.cursor()
@@ -170,9 +183,14 @@ def main():
     c.execute('SELECT issue_key FROM events WHERE trigger_id=?', (trigger_id,))
     result = c.fetchall()
     # print(result)
+    priority = "5"
     if not result and trigger_ok == 0:
+        for i in trigger_desc.values():
+            if i['name'] == settings['zbx_priority']:
+                priority = i.get('id')
+
         issue_key = create_issue(sys.argv[1], sys.argv[2], '\n'.join(zbx_body_text), config.jira_project,
-                                 config.jira_issue_type)
+                                 config.jira_issue_type, priority)
         zbx.login()
         if not zbx.cookie:
             print_message("Login to Zabbix web UI has failed, check manually...")
