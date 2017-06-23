@@ -39,7 +39,7 @@ zbx;graphs_period=1800
 zbx;itemid:{ITEM.ID1}
 zbx;triggerid:{TRIGGER.ID}
 zbx;title:{HOST.HOST} - {TRIGGER.NAME}
-Trigger Severity: {TRIGGER.SEVERITY}
+zbxtg;priority:{TRIGGER.SEVERITY}
 Server: {HOSTNAME} ({HOST.IP})
 
 Desc:
