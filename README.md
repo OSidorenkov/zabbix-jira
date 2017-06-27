@@ -51,7 +51,7 @@ Example recovery message:
 ```
 Server: {HOSTNAME} ({HOST.IP})
 zbx;triggerid:{TRIGGER.ID}
-zbx:ok:1
+zbx;ok:1
 
 Description:
 Problem resolved!
@@ -68,6 +68,7 @@ zbx;graphs_height=300 -- set graphs height (default - 300px)
 zbx;itemid:{ITEM.ID1} -- define itemid (from trigger) for attach
 zbx;title:{HOST.HOST} - {TRIGGER.NAME} -- graph title
 zbx_triggerid:{TRIGGER.ID} -- define triggerid to link problem and recovery of event
+zbxtg;priority:{TRIGGER.SEVERITY} -- set priority task like as priority of trigger from Zabbix
 zbx;ok:1 -- use this parameter only in RECOVERY message, if you don't want create a new task about recovery in Jira
 ```
 
