@@ -1,5 +1,5 @@
 # zabbix-jira
-Python module that allows you to create tasks in Jira with grafs by the trigger from Zabbix.
+zabbix-jira is python module that allows you to create tasks in Jira with grafs by the trigger from Zabbix.
 
 ## Requirements: 
 * python >= 2.7
