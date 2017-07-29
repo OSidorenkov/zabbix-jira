@@ -10,7 +10,7 @@ zabbix-jira is python module that allows you to create tasks in Jira with grafs 
 `git clone https://github.com/OSidorenkov/zabbix-jira.git` 
 2. Copy `jirabix.py` to your Zabbix `AlertScriptsPath` directory (see your zabbix_server.conf) 
 3. Create and configure `config.py` near `jirabix.py`. You can take as an example `config.py.example` from repo.  
-4. Install python libs: `pip install requests jira`
+4. Install python libs: `pip install requirements.txt`
 
 ## Configuration:
 * Create new media type in Zabbix:  
