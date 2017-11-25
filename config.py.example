@@ -1,7 +1,7 @@
 jira_server = 'https://jira.example.ru'
 jira_user = 'jira'
 jira_pass = 'pass'
-jira_close_status = '41'  # unique status for project. Read https://jira.readthedocs.io/en/master/examples.html#transitions to get your id
+jira_transition = 'Done'  # Transition to close issue. Read more https://jira.readthedocs.io/en/master/examples.html#transitions
 jira_project = 'ZBX'  # Your project key, for example "ZBX"
 jira_issue_type = 'Error'  # Your issue type in Jira project(Error, Bug, Epic ...)
 

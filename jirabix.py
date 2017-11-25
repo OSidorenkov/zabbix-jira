@@ -48,6 +48,16 @@ def add_comment(issue, comment):
     jira.add_comment(issue, comment)
 
 
+def get_transition():
+    jira_server = {'server': config.jira_server}
+    jira = JIRA(options=jira_server, basic_auth=(config.jira_user, config.jira_pass))
+    issue = jira.issue(config.jira_project + '-1')
+    transitions = jira.transitions(issue)
+    for t in transitions:
+        if t['name'] == config.jira_transition:
+            return t['id']
+
+
 class ZabbixAPI:
     def __init__(self, server, username, password):
         self.debug = False
@@ -196,8 +206,8 @@ def main():
             print_message("Login to Zabbix web UI has failed, check manually...")
         else:
             zbx_file_img = zbx.graph_get(settings["zbx_itemid"], settings["zbx_image_period"],
-                                           settings["zbx_title"], settings["zbx_image_width"],
-                                           settings["zbx_image_height"], tmp_dir)
+                                         settings["zbx_title"], settings["zbx_image_width"],
+                                         settings["zbx_image_height"], tmp_dir)
             if not zbx_file_img:
                 print_message("Can't get image, check URL manually")
             elif isinstance(zbx_file_img, str):
@@ -210,7 +220,7 @@ def main():
     else:
         issue_key = result[0][0]
         add_comment(issue_key, '\n'.join(zbx_body_text))
-        close_issue(issue_key, config.jira_close_status)
+        close_issue(issue_key, get_transition())
         c.execute('DELETE FROM events WHERE trigger_id=?', (trigger_id,))
         conn.commit()
         conn.close()
