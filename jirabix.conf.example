@@ -1,0 +1,31 @@
+{% set secretjira = salt['vault.read_secret']('secret/zabbix/jira-alert') -%}
+{% set secretzab = salt['vault.read_secret']('secret/zabbix/admin') -%}
+[default]
+# variable for separating text from script info
+zbx_prefix=zbx
+
+# directory for saving caches, cookies, etc.
+zbx_tmp_dir=/tmp/
+
+# zabbix server full url
+zbx_server=https://zabbix.utils.net/zabbix
+zbx_api_user={{ secretzab.username }}
+zbx_api_pass={{ secretzab.password }}
+
+# True - do not ignore self signed certificates, False - ignore
+zbx_api_verify=True
+jira_server=https://jira.utils.net
+jira_user={{ secretjira.username }}
+jira_pass={{ secretjira.password }}
+
+#proxy_to_zbx=1.1.1.1:8080
+#proxy_to_teams=1.1.1.1:8080
+
+# Config name per project key, for example "ZBX"
+[OPS]
+# unique status for project. Read https://jira.readthedocs.io/en/master/examples.html#transitions to get your id
+jira_close_status=61
+# Your issue type in Jira project(Error, Bug, Epic ...)
+jira_issue_type=Bug
+jira_filter=project = OPS AND status != closed AND labels = "Monitoring" AND text ~ "eventid:{0}"
+o365_webhook=https://outlook.office.com/webhook/1111-1111-1111-1111

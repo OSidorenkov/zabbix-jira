@@ -1,33 +1,41 @@
 #!/usr/bin/python
 # coding: utf-8
 
+
 from jira import JIRA
-import config
 import sys
 import requests
 import re
 import os
 import json
 import logging
+import configparser
+from configparser import NoOptionError
 
 # PARAMS RECEIVED FROM ZABBIX SERVER:
 # sys.argv[1] = TO
 # sys.argv[2] = SUBJECT
 # sys.argv[3] = BODY
+# sys.argv[4] = Jira Project
 
 logging.basicConfig(filename='/tmp/jirabix.log', level=logging.ERROR,
                     format='%(asctime)s %(levelname)s %(name)s %(message)s')
 logger=logging.getLogger(__name__)
 
+config = configparser.ConfigParser()
+config.read('jirabix.conf')
+
 
 def jira_login():
-    jira_server = {'server': config.jira_server}
+    jira_server = {'server': config.get('default', 'jira_server')}
     proxies = {}
     try:
-        proxies = {'http': config.proxy_to_jira, 'https': config.proxy_to_jira}
+        proxies = {'http': config.get('default', 'proxy_to_jira'), 'https': config.get('default', 'proxy_to_jira')}
     except AttributeError:
         pass
-    return JIRA(options=jira_server, basic_auth=(config.jira_user, config.jira_pass), proxies=proxies)
+    except NoOptionError:
+        pass
+    return JIRA(options=jira_server, basic_auth=(config.get('default', 'jira_user'), config.get('default', 'jira_pass')), proxies=proxies)
 
 
 def create_issue(jira, to, tittle, body, project, issuetype):
@@ -58,11 +66,11 @@ def add_comment(jira, issue, comment):
     jira.add_comment(issue, comment)
 
 
-def msg_teams(jira, subject, trigger_id, item_id, priority_name, host, zbx_graph=None):
+def msg_teams(jira_project, jira, subject, trigger_id, item_id, priority_name, host, zbx_graph=None):
     logger.info("messaging teams")
-    jira_url = config.jira_server + '/browse/' + jira
-    zabbix_trigger_url = config.zbx_server + "/zabbix.php?action=problem.view&filter_triggerids%5B%5D=" + str(trigger_id) + "&filter_set=1"
-    zabbix_history_url = config.zbx_server + "/history.php?action=showgraph&itemids%5B%5D=" + str(item_id)
+    jira_url = config.get('default', 'jira_server') + '/browse/' + jira
+    zabbix_trigger_url = config.get('default', 'zbx_server') + "/zabbix.php?action=problem.view&filter_triggerids%5B%5D=" + str(trigger_id) + "&filter_set=1"
+    zabbix_history_url = config.get('default', 'zbx_server') + "/history.php?action=showgraph&itemids%5B%5D=" + str(item_id)
 
     theme_color = None
     trigger_status = subject.split(":")[0]
@@ -82,10 +90,12 @@ def msg_teams(jira, subject, trigger_id, item_id, priority_name, host, zbx_graph
     proxies = {}
     try:
         proxies = {
-            "http": "http://{0}/".format(config.proxy_to_teams),
-            "https": "https://{0}/".format(config.proxy_to_teams)
+            "http": "http://{0}/".format(config.get('default', 'proxy_to_teams')),
+            "https": "https://{0}/".format(config.get('default', 'proxy_to_teams'))
             }
     except AttributeError:
+        pass
+    except NoOptionError:
         pass
 
     payload = {
@@ -136,9 +146,10 @@ def msg_teams(jira, subject, trigger_id, item_id, priority_name, host, zbx_graph
 
               }
     if zbx_graph:
+        logger.debug("Teams message. Adding graph")
         payload['sections'].append({"images": [{ "image":zbx_graph}]})
     headers = {'content-type': 'application/json'}
-    response = requests.post(config.o365_webhook, data=json.dumps(payload), headers=headers, proxies=proxies)
+    response = requests.post(config.get(jira_project, 'o365_webhook'), data=json.dumps(payload), headers=headers, proxies=proxies)
     return response
 
 
@@ -191,26 +202,30 @@ class ZabbixAPI:
 
 
 def main():
-    if not os.path.exists(config.zbx_tmp_dir):
-        os.makedirs(config.zbx_tmp_dir)
-    tmp_dir = config.zbx_tmp_dir
+    zbx_prefix = config.get('default', 'zbx_prefix')
+    if not os.path.exists(config.get('default', 'zbx_tmp_dir')):
+        os.makedirs(config.get('default', 'zbx_tmp_dir'))
+    tmp_dir = config.get('default', 'zbx_tmp_dir') + zbx_prefix
 
     trigger_status = sys.argv[2].split(":")[0]
     zbx_body = sys.argv[3]
+    jira_project = sys.argv[4]
 
-    zbx = ZabbixAPI(server=config.zbx_server, username=config.zbx_api_user,
-                    password=config.zbx_api_pass)
+    zbx = ZabbixAPI(server=config.get('default', 'zbx_server'), username=config.get('default', 'zbx_api_user'),
+                    password=config.get('default', 'zbx_api_pass'))
 
     try:
         zbx.proxies = {
-            "http": "http://{0}/".format(config.proxy_to_zbx),
-            "https": "https://{0}/".format(config.proxy_to_zbx)
+            "http": "http://{0}/".format(config.get('default', 'proxy_to_zbx')),
+            "https": "https://{0}/".format(config.get('default', 'proxy_to_zbx'))
             }
     except AttributeError:
         pass
+    except NoOptionError:
+        pass
 
     try:
-        zbx_api_verify = config.zbx_api_verify
+        zbx_api_verify = bool(config.get('default', 'zbx_api_verify'))
         zbx.verify = zbx_api_verify
     except AttributeError:
         pass
@@ -242,9 +257,9 @@ def main():
     }
 
     for line in zbx_body:
-        if line.find(config.zbx_prefix) > -1:
+        if line.find(zbx_prefix) > -1:
             setting = re.split("[\s\:\=]+", line, maxsplit=1)
-            key = setting[0].replace(config.zbx_prefix + ";", "")
+            key = setting[0].replace(zbx_prefix + ";", "")
             if len(setting) > 1 and len(setting[1]) > 0:
                 value = setting[1]
             else:
@@ -263,14 +278,14 @@ def main():
 
     # Search for any existing non-closed ticket with matching eventid
     j = jira_login()
-    tickets = j.search_issues('project = OPS AND status != closed AND labels = "Monitoring" AND text ~ "eventid:{0}"'.format(event_id))
-
+    jira_filter = config.get(jira_project, 'jira_filter')
+    tickets = j.search_issues(jira_filter.format(event_id))
 
     # Take action on new problem
     if not tickets and trigger_status == "PROBLEM":
         zbx_graph_url = None
-        issue_key = create_issue(j, sys.argv[1], sys.argv[2], '\n'.join(zbx_body_text), config.jira_project,
-                                 config.jira_issue_type)
+        issue_key = create_issue(j, sys.argv[1], sys.argv[2], '\n'.join(zbx_body_text), jira_project,
+                                 config.get(jira_project, 'jira_issue_type'))
         zbx.login()
         if not zbx.cookie:
             logger.error("Login to Zabbix web UI has failed, check manually...")
@@ -285,14 +300,17 @@ def main():
             elif isinstance(zbx_file_img, str):
                 add_attachment(j, issue_key, zbx_file_img)
                 os.remove(zbx_file_img)
-        if config.o365_webhook:
-            teams_response = msg_teams(issue_key, sys.argv[2], trigger_id, settings['zbx_itemid'], settings['zbx_priority'], host, zbx_graph=zbx_graph_url)
+        try:
+            if config.get(jira_project, 'o365_webhook'):
+                teams_response = msg_teams(jira_project, issue_key, sys.argv[2], trigger_id, settings['zbx_itemid'], settings['zbx_priority'], host, zbx_graph=zbx_graph_url)
+        except AttributeError:
+            pass
 
     # Close open ticket
     if tickets and trigger_status == "OK":
         issue_key = tickets[0]
         add_comment(j, issue_key, '\n'.join(zbx_body_text))
-        close_issue(j, issue_key, config.jira_close_status)
+        close_issue(j, issue_key, config.get(jira_project, 'jira_close_status'))
 
 
 if __name__ == '__main__':
