@@ -1,6 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # coding: utf-8
-
 
 from jira import JIRA
 import sys
@@ -47,7 +46,7 @@ def create_issue(jira, to, tittle, body, project, issuetype):
             'issuetype': {'name': issuetype},
             'duedate' : "2017-12-12",
             'labels': ["Monitoring"],
-            'customfield_11100' : {"value":"DaaS-STG"}
+            'customfield_11100' : {"value":"Environment String"}
     }
     return jira.create_issue(fields=issue_params).key
 
@@ -64,6 +63,15 @@ def close_issue(jira, issue, status):
 
 def add_comment(jira, issue, comment):
     jira.add_comment(issue, comment)
+
+
+def get_transition(jira, project, transition):
+    issue = jira.issue(project + '-1')
+    transitions = jira.transitions(issue)
+    for t in transitions:
+        if t['name'] == transition:
+            logger.info("Found transition: {0}".format(t['id']))
+            return t['id']
 
 
 def msg_teams(jira_project, jira, subject, trigger_id, item_id, priority_name, host, zbx_graph=None):
@@ -305,12 +313,15 @@ def main():
                 teams_response = msg_teams(jira_project, issue_key, sys.argv[2], trigger_id, settings['zbx_itemid'], settings['zbx_priority'], host, zbx_graph=zbx_graph_url)
         except AttributeError:
             pass
+        except NoOptionError:
+            pass
 
     # Close open ticket
     if tickets and trigger_status == "OK":
         issue_key = tickets[0]
         add_comment(j, issue_key, '\n'.join(zbx_body_text))
-        close_issue(j, issue_key, config.get(jira_project, 'jira_close_status'))
+        transition = get_transition(j, jira_project, config.get(jira_project, 'jira_transition'))
+        close_issue(j, issue_key, transition)
 
 
 if __name__ == '__main__':

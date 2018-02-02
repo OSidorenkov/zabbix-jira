@@ -1,5 +1,5 @@
 # zabbix-jira
-Python module that allows you to create tasks in Jira with grafs by the trigger from Zabbix.
+zabbix-jira is python module that allows you to create tasks in Jira with grafs by the trigger from Zabbix.
 
 ## Requirements: 
 * python >= 2.7
@@ -10,7 +10,7 @@ Python module that allows you to create tasks in Jira with grafs by the trigger 
 `git clone https://github.com/OSidorenkov/zabbix-jira.git` 
 2. Copy `jirabix.py` to your Zabbix `AlertScriptsPath` directory (see your zabbix_server.conf) 
 3. Create and configure `config.py` near `jirabix.py`. You can take as an example `config.py.example` from repo.  
-4. Install python libs: `pip install requests jira`
+4. Install python libs: `pip install -r requirements.txt`
 
 ## Configuration:
 * Create new media type in Zabbix:  
@@ -39,7 +39,7 @@ zbx;graphs_period=1800
 zbx;itemid:{ITEM.ID1}
 zbx;triggerid:{TRIGGER.ID}
 zbx;title:{HOST.HOST} - {TRIGGER.NAME}
-zbxtg;priority:{TRIGGER.SEVERITY}
+zbx;priority:{TRIGGER.SEVERITY}
 Server: {HOSTNAME} ({HOST.IP})
 
 Desc:
@@ -68,7 +68,7 @@ zbx;graphs_height=300 -- set graphs height (default - 300px)
 zbx;itemid:{ITEM.ID1} -- define itemid (from trigger) for attach
 zbx;title:{HOST.HOST} - {TRIGGER.NAME} -- graph title
 zbx;triggerid:{TRIGGER.ID} -- define triggerid to link problem and recovery of event
-zbxtg;priority:{TRIGGER.SEVERITY} -- set priority task like as priority of trigger from Zabbix
+zbx;priority:{TRIGGER.SEVERITY} -- set priority task like as priority of trigger from Zabbix
 zbx;ok:1 -- use this parameter only in RECOVERY message, if you don't want create a new task about recovery in Jira
 ```
 
