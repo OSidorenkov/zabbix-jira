@@ -1,0 +1,34 @@
+[default]
+# variable for separating text from script info
+zbx_prefix=zbx
+
+# directory for saving caches, cookies, etc.
+zbx_tmp_dir=/tmp/
+
+# zabbix server full url
+zbx_server=https://zabbix.example.ru/zabbix
+zbx_api_user=zabbix-admin
+zbx_api_pass=pass
+
+# True - do not ignore self signed certificates, False - ignore
+zbx_api_verify=True
+jira_server=https://jira.example.ru
+jira_user=jirauser
+jira_pass=jirapass
+
+#proxy_to_zbx=proxy.local:3128
+#proxy_to_teams=1.1.1.1:8080
+
+# Config name per project key, for example "ZBX"
+[ZBX]
+# Transition to close issue. Read https://jira.readthedocs.io/en/master/examples.html#transitions
+jira_transition=Closed
+# Your issue type in Jira project(Error, Bug, Epic ...)
+jira_issue_type=Bug
+jira_filter=project = ZBX AND status != closed AND labels = "Monitoring" AND text ~ "eventid:{0}"
+o365_webhook=https://outlook.office.com/webhook/1111-1111-1111-1111
+
+[OPS]
+jira_transition=Done
+jira_issue_type=Error
+jira_filter=project = OPS AND status != done AND labels = "Monitoring" AND text ~ "eventid:{0}"
