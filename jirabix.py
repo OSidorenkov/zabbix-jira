@@ -48,10 +48,10 @@ def add_comment(issue, comment):
     jira.add_comment(issue, comment)
 
 
-def get_transition():
+def get_transition(issue_key):
     jira_server = {'server': config.jira_server}
     jira = JIRA(options=jira_server, basic_auth=(config.jira_user, config.jira_pass))
-    issue = jira.issue(config.jira_project + '-1')
+    issue = jira.issue(issue_key)
     transitions = jira.transitions(issue)
     for t in transitions:
         if t['name'] == config.jira_transition:
@@ -220,7 +220,7 @@ def main():
     else:
         issue_key = result[0][0]
         add_comment(issue_key, '\n'.join(zbx_body_text))
-        close_issue(issue_key, get_transition())
+        close_issue(issue_key, get_transition(issue_key))
         c.execute('DELETE FROM events WHERE trigger_id=?', (trigger_id,))
         conn.commit()
         conn.close()
