@@ -286,7 +286,7 @@ def main():
             {
             "eventids": event_id,
             "message": ack_msg
-            }
+            })
         logging.debug("Acknowledge response: %s", event_ack)
 
     elif not result and trigger_ok == 1:
