@@ -9,6 +9,7 @@ import re
 import os
 import sqlite3
 import logging
+import json
 
 # PARAMS RECEIVED FROM ZABBIX SERVER:
 # sys.argv[1] = TO
