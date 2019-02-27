@@ -38,6 +38,7 @@ zbx;graphs
 zbx;graphs_period=1800
 zbx;itemid:{ITEM.ID1}
 zbx;triggerid:{TRIGGER.ID}
+zbx;eventid:{EVENT.ID}
 zbx;title:{HOST.HOST} - {TRIGGER.NAME}
 zbx;priority:{TRIGGER.SEVERITY}
 Server: {HOSTNAME} ({HOST.IP})
@@ -68,6 +69,7 @@ zbx;graphs_height=300 -- set graphs height (default - 300px)
 zbx;itemid:{ITEM.ID1} -- define itemid (from trigger) for attach
 zbx;title:{HOST.HOST} - {TRIGGER.NAME} -- graph title
 zbx;triggerid:{TRIGGER.ID} -- define triggerid to link problem and recovery of event
+zbx;eventid:{EVENT.ID} -- define eventid to make acknowledge action 
 zbx;priority:{TRIGGER.SEVERITY} -- set priority task like as priority of trigger from Zabbix
 zbx;ok:1 -- use this parameter only in RECOVERY message, if you don't want create a new task about recovery in Jira
 ```
