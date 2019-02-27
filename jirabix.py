@@ -8,6 +8,8 @@ import requests
 import re
 import os
 import sqlite3
+import logging
+import json
 
 # PARAMS RECEIVED FROM ZABBIX SERVER:
 # sys.argv[1] = TO
@@ -67,20 +69,46 @@ class ZabbixAPI:
         self.proxies = {}
         self.verify = True
         self.cookie = None
+        self.auth = None
+        self.id = 1
 
     def login(self):
-
         data_api = {"name": self.username, "password": self.password, "enter": "Sign in"}
         req_cookie = requests.post(self.server + "/", data=data_api, proxies=self.proxies, verify=self.verify)
         cookie = req_cookie.cookies
         if len(req_cookie.history) > 1 and req_cookie.history[0].status_code == 302:
-            print_message("probably the server in your config file has not full URL (for example "
+            logging.error("probably the server in your config file has not full URL (for example "
                           "'{0}' instead of '{1}')".format(self.server, self.server + "/zabbix"))
         if not cookie:
-            print_message("authorization has failed, url: {0}".format(self.server + "/"))
+            logging.error("authorization has failed, url: {0}".format(self.server + "/"))
             cookie = None
 
         self.cookie = cookie
+
+        request_json = {
+            'jsonrpc': '2.0',
+            'method': 'user.login',
+            'params': {
+                'user': self.username,
+                'password': self.password
+            },
+            'id': self.id
+        }
+
+        req = requests.post(self.server + "/api_jsonrpc.php", data=json.dumps(request_json), headers={"content-type": "application/json-rpc"}, proxies=self.proxies)
+        res = req.json()
+
+        res_str = json.dumps(res, indent=4, separators=(',', ': '))
+        logging.debug("Authenticate response: %s", res_str)
+
+        self.id += 1
+
+        if 'error' in res:
+            err = res['error'].copy()
+            err.update({'json': str(request_json)})
+            logging.error(err)
+
+        self.auth = res['result']
 
     def graph_get(self, itemid, period, title, width, height, tmp_dir):
         file_img = tmp_dir + "/{0}.png".format(itemid)
@@ -93,25 +121,53 @@ class ZabbixAPI:
                                     "&items[0][drawtype]=5&items[0][color]=00CC00".format(itemid, period, title,
                                                                                           width, height)
         if self.debug:
-            print_message(zbx_img_url)
+            logging.debug(zbx_img_url)
         res = requests.get(zbx_img_url, cookies=self.cookie, proxies=self.proxies, verify=self.verify, stream=True)
         res_code = res.status_code
         if res_code == 404:
-            print_message("can't get image from '{0}'".format(zbx_img_url))
+            logging.error("can't get image from '{0}'".format(zbx_img_url))
             return False
         res_img = res.content
         with open(file_img, 'wb') as fp:
             fp.write(res_img)
         return file_img
 
+    def do_request(self, method, params=None):
+        request_json = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params or {},
+            "id": self.id,
+        }
 
-def print_message(string):
-    string = str(string) + "\n"
-    filename = sys.argv[0].split("/")[-1]
-    sys.stderr.write(filename + ": " + string)
+        if self.auth:
+            request_json['auth'] = self.auth
+
+        req = requests.post(self.server + "/api_jsonrpc.php", data=json.dumps(request_json), headers={"content-type": "application/json-rpc"}, proxies=self.proxies)
+
+        res = req.json()
+
+        res_str = json.dumps(res, indent=4, separators=(',', ': '))
+        logging.debug("Response Body: %s", res_str)
+
+        self.id += 1
+
+        if 'error' in res:
+            err = res['error'].copy()
+            err.update({'json': str(request_json)})
+            logging.error(err)
+
+        return res['result']
 
 
 def main():
+    logfile = os.path.join(os.path.dirname(__file__), 'jirabix.log')
+    if self.debug:
+        logging.basicConfig(filename=logfile, format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level=logging.DEBUG)
+    else:
+        logging.basicConfig(filename=logfile, format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level=logging.ERROR)
+    logging.info('Start working on Zabbix alert')
+
     if not os.path.exists(config.zbx_tmp_dir):
         os.makedirs(config.zbx_tmp_dir)
     tmp_dir = config.zbx_tmp_dir
@@ -150,6 +206,7 @@ def main():
     settings_description = {
         "itemid": {"name": "zbx_itemid", "type": "int"},
         "triggerid": {"name": "zbx_triggerid", "type": "int"},
+        "eventid": {"name": "zbx_eventid", "type": "int"},
         "ok": {"name": "zbx_ok", "type": "int"},
         "priority": {"name": "zbx_priority", "type": "str"},
         "title": {"name": "zbx_title", "type": "str"},
@@ -183,6 +240,10 @@ def main():
 
     trigger_ok = int(settings['zbx_ok'])
     trigger_id = int(settings['zbx_triggerid'])
+    try:
+        event_id = int(settings['zbx_eventid'])
+    except:
+        logging.debug('EventID cannot be computed due to Zabbix problems')
 
     # print(os.path.join(os.path.dirname(__file__), 'test.db'))
     conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'jirabix.db'))
@@ -203,19 +264,33 @@ def main():
                                  config.jira_issue_type, priority)
         zbx.login()
         if not zbx.cookie:
-            print_message("Login to Zabbix web UI has failed, check manually...")
+            logging.error("Login to Zabbix web UI has failed, check manually...")
         else:
             zbx_file_img = zbx.graph_get(settings["zbx_itemid"], settings["zbx_image_period"],
                                          settings["zbx_title"], settings["zbx_image_width"],
                                          settings["zbx_image_height"], tmp_dir)
             if not zbx_file_img:
-                print_message("Can't get image, check URL manually")
+                logging.error("Can't get image, check URL manually")
             elif isinstance(zbx_file_img, str):
                 add_attachment(issue_key, zbx_file_img)
                 os.remove(zbx_file_img)
         c.execute("INSERT INTO events VALUES (?, ?);", (trigger_id, issue_key))
         conn.commit()
+
+        ack_msg = 'Successfully created JIRA issue: ' + config.jira_server + '/browse/' + issue_key
+        event_ack = zbx.do_request('event.acknowledge',
+            {
+            "eventids": event_id,
+           #"action": 6, - For use with Zabbix > 4.0
+            "message": ack_msg
+            })
+        zbx.do_request('user.logout')
+
     elif not result and trigger_ok == 1:
+        logging.info('trigger_ok=1, but nothing found in SQLite3 database for trigger_id={}. Exiting...'.format(trigger_id))
+        pass
+    elif result and trigger_ok == 0:
+        logging.info('Found issue "{}" in database, but trigger_ok=0. Nothing to do, exiting...'.format(result[0][0]))
         pass
     else:
         issue_key = result[0][0]
@@ -224,6 +299,19 @@ def main():
         c.execute('DELETE FROM events WHERE trigger_id=?', (trigger_id,))
         conn.commit()
         conn.close()
+        zbx.login()
+        if not zbx.cookie:
+            logging.error("Login to Zabbix web UI has failed, check manually...")
+        else:
+            ack_msg = 'Successfully close JIRA task: ' + config.jira_server + '/browse/' + issue_key
+            event_ack = zbx.do_request('event.acknowledge',
+                {
+                "eventids": event_id,
+               #"action": 4, - if you are using Zabbix > 4.0
+                "message": ack_msg
+                })
+
+            zbx.do_request('user.logout')
 
 
 if __name__ == '__main__':
