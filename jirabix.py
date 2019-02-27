@@ -206,6 +206,7 @@ def main():
     settings_description = {
         "itemid": {"name": "zbx_itemid", "type": "int"},
         "triggerid": {"name": "zbx_triggerid", "type": "int"},
+        "eventid": {"name": "zbx_eventid", "type": "int"},
         "ok": {"name": "zbx_ok", "type": "int"},
         "priority": {"name": "zbx_priority", "type": "str"},
         "title": {"name": "zbx_title", "type": "str"},
@@ -239,6 +240,10 @@ def main():
 
     trigger_ok = int(settings['zbx_ok'])
     trigger_id = int(settings['zbx_triggerid'])
+    try:
+        event_id = int(settings['zbx_eventid'])
+    except:
+        logging.debug('EventID cannot be computed due to Zabbix problems')
 
     # print(os.path.join(os.path.dirname(__file__), 'test.db'))
     conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'jirabix.db'))
@@ -272,25 +277,20 @@ def main():
         c.execute("INSERT INTO events VALUES (?, ?);", (trigger_id, issue_key))
         conn.commit()
 
-        event_get = zbx.do_request('event.get',
-            {
-            "objectids": trigger_id,
-            "output": "extend",
-            "sortfield": "clock",
-            "sortorder": "DESC",
-            "limit": 1
-            })
-        logging.debug("Getting event response: %s", event_get)
-        event_id = str(event_get).split(',')[0].split(':')[1].strip().strip("'") # What a crap :(. I don't know why, but the event.get method returns a "list" instead of a "dict" 
         ack_msg = 'Successfully created JIRA issue: ' + config.jira_server + '/browse/' + issue_key
         event_ack = zbx.do_request('event.acknowledge',
             {
             "eventids": event_id,
+           #"action": 6, - For use with Zabbix > 4.0
             "message": ack_msg
             })
-        logging.debug("Acknowledge response: %s", event_ack)
+        zbx.do_request('user.logout')
 
     elif not result and trigger_ok == 1:
+        logging.info('trigger_ok=1, but nothing found in SQLite3 database for trigger_id={}. Exiting...'.format(trigger_id))
+        pass
+    elif result and trigger_ok == 0:
+        logging.info('Found issue "{}" in database, but trigger_ok=0. Nothing to do, exiting...'.format(result[0][0]))
         pass
     else:
         issue_key = result[0][0]
@@ -299,6 +299,19 @@ def main():
         c.execute('DELETE FROM events WHERE trigger_id=?', (trigger_id,))
         conn.commit()
         conn.close()
+        zbx.login()
+        if not zbx.cookie:
+            logging.error("Login to Zabbix web UI has failed, check manually...")
+        else:
+            ack_msg = 'Successfully close JIRA task: ' + config.jira_server + '/browse/' + issue_key
+            event_ack = zbx.do_request('event.acknowledge',
+                {
+                "eventids": event_id,
+               #"action": 4, - if you are using Zabbix > 4.0
+                "message": ack_msg
+                })
+
+            zbx.do_request('user.logout')
 
 
 if __name__ == '__main__':
